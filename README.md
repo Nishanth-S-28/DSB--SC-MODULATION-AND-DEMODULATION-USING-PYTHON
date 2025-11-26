@@ -34,68 +34,63 @@ __Procedure__:
 ```c
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.signal import butter, lfilter
 
-# -----------------------
-# Signal Parameters
-# -----------------------
-fs = 10000  # Sampling frequency
-t = np.arange(0, 0.01, 1/fs)
+# Parameters (same as your code)
+fs = 10000 # Sampling frequency in Hz
+t = np.arange(0, 1, 1/fs)  # Time array for 1 second
+fm = 100  # Message frequency in Hz
+fc = 1000   # Carrier frequency in Hz
+Am = 11.1   # Amplitude of message
+Ac = 22.2   # Amplitude of carrier
 
-Am = 1       # Amplitude of message signal
-Ac = 5       # Amplitude of carrier signal
-fm = 100     # Frequency of message signal
-fc = 1000    # Frequency of carrier signal
-mod_index = 0.7  # Modulation Index
+# Message and carrier signals
+message = Am * np.cos(2 * np.pi * fm * t)
+carrier = Ac * np.cos(2 * np.pi * fc * t)
 
-# -----------------------
-# Generate Signals
-# -----------------------
-message = Am * np.sin(2 * np.pi * fm * t)
-carrier = Ac * np.sin(2 * np.pi * fc * t)
+# DSB-SC modulation
+dsb_sc = message * carrier
 
-# -----------------------
-# AM Modulation
-# -----------------------
-am_signal = Ac * (1 + mod_index * np.sin(2 * np.pi * fm * t)) * np.sin(2 * np.pi * fc * t)
+# Demodulation: multiply again by carrier (coherent detection)
+demodulated_signal = dsb_sc * carrier
 
-# -----------------------
-# Envelope Detection (Demodulation)
-# -----------------------
-# Rectifier (Full-wave absolute value)
-rectified = np.abs(am_signal)
+# Low-pass filter design to extract message from demodulated signal
+def butter_lowpass(cutoff, fs, order=5):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = butter(order, normal_cutoff, btype='low', analog=False)
+    return b, a
 
-# Low-pass filter (moving average)
-N = 50
-demodulated = np.convolve(rectified, np.ones(N)/N, mode='same')
+def lowpass_filter(data, cutoff, fs, order=5):
+    b, a = butter_lowpass(cutoff, fs, order=order)
+    y = lfilter(b, a, data)
+    return y
 
-# -----------------------
+cutoff_freq = 1500  # cutoff frequency for low pass filter (higher than message frequency)
+rec_message = lowpass_filter(demodulated_signal, cutoff_freq, fs)
+
 # Plotting
-# -----------------------
-plt.figure(figsize=(12,10))
+plt.figure(figsize=(12, 9))
 
-plt.subplot(4,1,1)
+plt.subplot(4, 1, 1)
 plt.plot(t, message)
-plt.title("Message Signal (Modulating Signal)")
-plt.xlabel("Time")
-plt.ylabel("Amplitude")
+plt.title("Original Message Signal")
+plt.xlabel("Time (seconds)")
 
-plt.subplot(4,1,2)
-plt.plot(t, carrier)
-plt.title("Carrier Signal")
-plt.xlabel("Time")
-plt.ylabel("Amplitude")
+plt.subplot(4, 1, 2)
+plt.plot(t, dsb_sc)
+plt.title("DSB-SC Modulated Signal")
+plt.xlabel("Time (seconds)")
 
-plt.subplot(4,1,3)
-plt.plot(t, am_signal, color='red')
-plt.title("AM Modulated Signal")
-plt.xlabel("Time")
-plt.ylabel("Amplitude")
+plt.subplot(4, 1, 3)
+plt.plot(t, demodulated_signal)
+plt.title("Signal After Coherent Demodulation (before LPF)")
+plt.xlabel("Time (seconds)")
 
-plt.subplot(4,1,4)
-plt.plot(t, demodulated, color='green')
-plt.title("Demodulated Signal (Recovered Message)")
-plt.xlabel("Time")
-plt.ylabel("Amplitude")
+plt.subplot(4, 1, 4)
+plt.plot(t, rec_message)
+plt.title("Recovered Message Signal (after Low-Pass Filter)")
+plt.xlabel("Time (seconds)")
 
 plt.tight_layout()
 plt.show()
